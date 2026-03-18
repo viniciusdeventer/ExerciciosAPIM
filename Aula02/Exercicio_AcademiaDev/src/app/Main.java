@@ -1,5 +1,6 @@
 package app;
 
+import java.util.List;
 import java.util.Scanner;
 
 import model.course.Course;
@@ -11,6 +12,7 @@ import service.EnrollmentService;
 import service.ReportService;
 import service.SupportService;
 import service.UserService;
+import util.GenericCsvExporter;
 import util.InitialData;
 
 public class Main {
@@ -144,6 +146,7 @@ public class Main {
             System.out.println("2 - Enroll");
             System.out.println("3 - My enrollments");
             System.out.println("4 - Open ticket");
+            System.out.println("5 - Update Progress");
             System.out.println("0 - Logout");
 
             int op = Integer.parseInt(sc.nextLine());
@@ -174,7 +177,7 @@ public class Main {
                 case 3 -> {
                     student.getEnrollments()
                             .forEach(e -> System.out.println(
-                                    e.getCourse().getTitle() + " - " + e.getProgress() + "%"
+                                    e.getId() + " - " + e.getCourse().getTitle() + " - " + e.getProgress() + "%"
                             ));
                 }
 
@@ -186,6 +189,16 @@ public class Main {
                     String msg = sc.nextLine();
 
                     supportService.openTicket(student, title, msg);
+                }
+                
+                case 5 -> {
+                    System.out.print("Enrollment: ");
+                    int enrollment = Integer.parseInt(sc.nextLine());
+                    
+                    System.out.print("New Progress: ");
+                    int newProgress = Integer.parseInt(sc.nextLine());
+                    
+                    enrollmentService.updateProgress(enrollment, newProgress);
                 }
 
                 case 0 -> {
@@ -211,36 +224,90 @@ public class Main {
 
             switch (op) {
 
-                case 1 -> {
-                    System.out.print("Level: ");
-                    String level = sc.nextLine();
+	            case 1 -> {
+	                System.out.print("Level: ");
+	                String level = sc.nextLine();
+	
+	                var courses = reportService.getCoursesByDifficulty(level);
+	
+	                String csv = GenericCsvExporter.export(
+	                        courses,
+	                        List.of("id", "title", "status")
+	                );
+	
+	                System.out.println("\n=== CSV ===");
+	                System.out.println(csv);
+	            }
 
-                    reportService.getCoursesByDifficulty(level)
-                            .forEach(c -> System.out.println(c.getTitle()));
-                }
+	            case 2 -> {
 
-                case 2 -> {
-                    reportService.getActiveCourseInstructors()
-                            .forEach(System.out::println);
-                }
+	                var instructors = reportService.getActiveCourseInstructors();
 
-                case 3 -> {
-                    reportService.groupStudentsByPlan()
-                            .forEach((plan, students) -> {
-                                System.out.println(plan.getClass().getSimpleName());
-                                students.forEach(s -> System.out.println(" - " + s.getName()));
-                            });
-                }
+	                String csv = GenericCsvExporter.export(
+	                        instructors.stream()
+	                                .map(name -> new Object() { String instructor = name; })
+	                                .toList(),
+	                        List.of("instructor")
+	                );
 
-                case 4 -> {
-                    System.out.println("Average: " +
-                            reportService.getAverageProgress());
-                }
+	                System.out.println("\n=== CSV ===");
+	                System.out.println(csv);
+	            }
 
-                case 5 -> {
-                    reportService.getTopStudentByActiveEnrollments()
-                            .ifPresent(s -> System.out.println(s.getName()));
-                }
+	            case 3 -> {
+
+	                var data = reportService.groupStudentsByPlan();
+
+	                var rows = data.entrySet().stream()
+	                        .flatMap(entry -> entry.getValue().stream()
+	                                .map(student -> new Object() {
+	                                    String plan = entry.getKey().getClass().getSimpleName();
+	                                    String name = student.getName();
+	                                }))
+	                        .toList();
+
+	                String csv = GenericCsvExporter.export(
+	                        rows,
+	                        List.of("plan", "name")
+	                );
+
+	                System.out.println("\n=== CSV ===");
+	                System.out.println(csv);
+	            }
+
+	            case 4 -> {
+
+	                double avg = reportService.getAverageProgress();
+
+	                var rows = List.of(new Object() {
+	                    double average = avg;
+	                });
+
+	                String csv = GenericCsvExporter.export(
+	                        rows,
+	                        List.of("average")
+	                );
+
+	                System.out.println("\n=== CSV ===");
+	                System.out.println(csv);
+	            }
+
+	            case 5 -> {
+
+	                var rows = reportService.getTopStudentByActiveEnrollments()
+	                        .map(s -> List.of(new Object() {
+	                            String name = s.getName();
+	                        }))
+	                        .orElse(List.of());
+
+	                String csv = GenericCsvExporter.export(
+	                        rows,
+	                        List.of("name")
+	                );
+
+	                System.out.println("\n=== CSV ===");
+	                System.out.println(csv);
+	            }
 
                 case 0 -> {
                     return;
